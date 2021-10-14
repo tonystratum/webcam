@@ -1,6 +1,6 @@
 # Simple Webcam Streaming
 
-OpenCV and UDP
+OpenCV and TCP
 
 Test with Python 3.7.3, OpenCV 4.1.0
 
