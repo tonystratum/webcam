@@ -1,9 +1,9 @@
 import socket
-import numpy as np
+import hashlib
 import cv2 as cv
 
 
-addr = ("192.168.0.108", 10000)
+addr = ("localhost", 10000)
 buf = 512
 width = 640
 height = 480
@@ -11,7 +11,7 @@ cap = cv.VideoCapture(0)
 cap.set(3, width)
 cap.set(4, height)
 code = 'start'
-code = ('start' + (buf - len(code)) * 'a').encode('utf-8')
+code = ('start' + (buf - len(code) - 32) * ' ').encode('utf-8')
 
 
 if __name__ == '__main__':
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         while cap.isOpened():
             ret, frame = cap.read()
             if ret:
-                s.sendto(code, addr)
+                s.sendto(code + hashlib.sha256(frame).digest(), addr)
                 data = frame.tobytes()
                 for i in range(0, len(data), buf):
                     s.sendto(data[i:i+buf], addr)
