@@ -1,12 +1,13 @@
 import socket
 import numpy as np
 import hashlib
+import cv2
 
 
 addr = ("localhost", 10000)
-buf = 512
 width = 640
 height = 480
+buf = 4096
 code = b'start'
 num_of_chunks = width * height * 3 / buf
 
@@ -16,7 +17,7 @@ if __name__ == '__main__':
     s.bind(addr)
     s.listen(1)
 
-    s, _ = s.accept()  # wait for connection
+    s, t = s.accept()  # wait for connection
     try:
         while True:
             chunks = []
@@ -30,14 +31,26 @@ if __name__ == '__main__':
                     frame_hash = chunk[-32:]
                     start = True
 
+            stop = b'stop' + (b' ' * (buf - len(b'stop')))
+            s.sendto(stop, t)
+
             byte_frame = b''.join(chunks)
-            frame = np.frombuffer(
-                byte_frame, dtype=np.uint8).reshape(height, width, 3)
-            if hashlib.sha256(frame).digest() == frame_hash:
-                # print(frame_hash, "OK")
-                print("OK", frame.shape)
-            else:
-                print("NOT OK", frame.shape)
+            frame_clean = None
+            try:
+                frame = np.frombuffer(
+                    byte_frame, dtype=np.uint8).reshape(height, width, 3)
+                if hashlib.sha256(frame).digest() == frame_hash:
+                    frame_clean = frame
+                else:
+                    print("WRONG HASH")
+                    frame_clean = np.zeros((height, width, 3))
+            except ValueError:
+                print("DATA LOSS")
+                frame_clean = np.zeros((height, width, 3))
+
+            cv2.imshow('send', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
     finally:
         s.close()
