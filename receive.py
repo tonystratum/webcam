@@ -1,56 +1,37 @@
 import socket
-import numpy as np
-import hashlib
 import cv2
+import pickle
+import struct
 
+# Client socket
+# create an INET, STREAMing socket : 
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host_ip = 'localhost'  # Standard loopback interface address (localhost)
+port = 10000
+# now connect to the web server on the specified port number
+client_socket.connect((host_ip, port))
+# 'b' or 'B' produces an instance of the bytes type instead of the str type
+# used in handling binary data from network connections
+data = b""
+# Q: unsigned long long integer(8 bytes)
+payload_size = struct.calcsize("Q")
 
-addr = ("localhost", 10000)
-width = 640
-height = 480
-buf = 4096
-code = b'start'
-num_of_chunks = width * height * 3 / buf
-
-
-if __name__ == '__main__':
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(addr)
-    s.listen(1)
-
-    s, t = s.accept()  # wait for connection
-    try:
-        while True:
-            chunks = []
-            start = False
-            frame_hash = None
-            while len(chunks) < num_of_chunks:
-                chunk, _ = s.recvfrom(buf)
-                if start:
-                    chunks.append(chunk)
-                elif chunk.startswith(code):
-                    frame_hash = chunk[-32:]
-                    start = True
-
-            stop = b'stop' + (b' ' * (buf - len(b'stop')))
-            s.sendto(stop, t)
-
-            byte_frame = b''.join(chunks)
-            frame_clean = None
-            try:
-                frame = np.frombuffer(
-                    byte_frame, dtype=np.uint8).reshape(height, width, 3)
-                if hashlib.sha256(frame).digest() == frame_hash:
-                    frame_clean = frame
-                else:
-                    print("WRONG HASH")
-                    frame_clean = np.zeros((height, width, 3))
-            except ValueError:
-                print("DATA LOSS")
-                frame_clean = np.zeros((height, width, 3))
-
-            cv2.imshow('send', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-    finally:
-        s.close()
+while True:
+    while len(data) < payload_size:
+        packet = client_socket.recv(4 * 1024)
+        if not packet:
+            break
+        data += packet
+    packed_msg_size = data[:payload_size]
+    data = data[payload_size:]
+    msg_size = struct.unpack("Q", packed_msg_size)[0]
+    while len(data) < msg_size:
+        data += client_socket.recv(4 * 1024)
+    frame_data = data[:msg_size]
+    data = data[msg_size:]
+    frame = pickle.loads(frame_data)
+    cv2.imshow("Receiving...", frame)
+    key = cv2.waitKey(10)
+    if key == 13:
+        break
+client_socket.close()

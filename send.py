@@ -1,68 +1,38 @@
-import queue
 import socket
-import hashlib
-import threading
+import cv2
+import pickle
+import struct
 
-import cv2 as cv
+# Server socket
+# create an INET, STREAMing socket
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host_name = socket.gethostname()
+host_ip = 'localhost'
+print('HOST IP:', host_ip)
+port = 10000
+socket_address = (host_ip, port)
+print('Socket created')
+# bind the socket to the host. 
+# The values passed to bind() depend on the address family of the socket
+server_socket.bind(socket_address)
+print('Socket bind complete')
+# listen() enables a server to accept() connections
+# listen() has a backlog parameter.
+# It specifies the number of unaccepted connections that the system will allow before refusing new connections.
+server_socket.listen(5)
+print('Socket now listening')
 
-addr = ("localhost", 10001)
-width = 640
-height = 480
-fps = 60
-buf = 4096
-code = 'start'
-code = ('start' + (buf - len(code) - 32) * ' ').encode('utf-8')
-
-
-def buffer_frames(cap, buffer, lock):
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            chunks = [code + hashlib.sha256(frame).digest()]
-            data = frame.tobytes()
-            for i in range(0, len(data), buf):
-                chunks.append(data[i:i + buf])
-            with lock:
-                buffer.put_nowait(chunks)
-        else:
-            break
-
-
-if __name__ == '__main__':
-    cap = cv.VideoCapture(0)
-    cap.set(3, width)
-    cap.set(4, height)
-    cap.set(5, fps)
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(addr)
-
-    frame_buffer = queue.Queue()
-    lock = threading.Lock()
-    buffer_thread = threading.Thread(target=buffer_frames, args=(cap, frame_buffer, lock))
-    buffer_thread.start()
-
-    send_next = True
-
-    try:
-        while True:
-            if send_next:
-                chunks = None
-                with lock:
-                    if not frame_buffer.empty():
-                        chunks = frame_buffer.get_nowait()
-                    else:
-                        continue
-
-                if chunks is not None:
-                    s.sendto(chunks.pop(0), addr)
-                    for chunk in chunks:
-                        s.sendto(chunk, addr)
-                    send_next = False
-
-                stop, _ = s.recvfrom(buf)
-                if stop.startswith(b'stop'):
-                    send_next = True
-                    # print("allow next")
-    finally:
-        s.close()
+while True:
+    client_socket, addr = server_socket.accept()
+    print('Connection from:', addr)
+    if client_socket:
+        vid = cv2.VideoCapture(0)
+        while vid.isOpened():
+            img, frame = vid.read()
+            a = pickle.dumps(frame)
+            message = struct.pack("Q", len(a)) + a
+            client_socket.sendall(message)
+            cv2.imshow('Sending...', frame)
+            key = cv2.waitKey(10)
+            if key == 13:
+                client_socket.close()
