@@ -4,7 +4,7 @@ import hashlib
 import cv2
 
 
-addr = ("localhost", 10000)
+addr = ("localhost", 10007)
 width = 640
 height = 480
 buf = 4096
@@ -21,6 +21,8 @@ if __name__ == '__main__':
     try:
         while True:
             chunks = []
+            stop = b'start' + (b' ' * (buf - len(b'start')))
+            s.sendto(stop, t)
             start = False
             frame_hash = None
             while len(chunks) < num_of_chunks:
@@ -30,9 +32,6 @@ if __name__ == '__main__':
                 elif chunk.startswith(code):
                     frame_hash = chunk[-32:]
                     start = True
-
-            stop = b'stop' + (b' ' * (buf - len(b'stop')))
-            s.sendto(stop, t)
 
             byte_frame = b''.join(chunks)
             frame_clean = None
