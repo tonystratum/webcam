@@ -1,38 +1,81 @@
+from multiprocessing import Process, Queue
 import socket
 import cv2
 import pickle
 import struct
 
-# Server socket
-# create an INET, STREAMing socket
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-host_name = socket.gethostname()
-host_ip = 'localhost'
-print('HOST IP:', host_ip)
-port = 10000
-socket_address = (host_ip, port)
-print('Socket created')
-# bind the socket to the host. 
-# The values passed to bind() depend on the address family of the socket
-server_socket.bind(socket_address)
-print('Socket bind complete')
-# listen() enables a server to accept() connections
-# listen() has a backlog parameter.
-# It specifies the number of unaccepted connections that the system will allow before refusing new connections.
-server_socket.listen(5)
-print('Socket now listening')
+import sys
 
-while True:
-    client_socket, addr = server_socket.accept()
-    print('Connection from:', addr)
-    if client_socket:
-        vid = cv2.VideoCapture(0)
-        while vid.isOpened():
-            img, frame = vid.read()
+
+def buffer_frames(capture: cv2.VideoCapture, frame_buffer: Queue):
+    while capture.isOpened():
+        frame_buffer.put(capture.read())
+
+
+def send_frames(sock: socket.socket, frame_buffer: Queue):
+    while True:
+        if sock:
+            img, frame = frame_buffer.get()
+
             a = pickle.dumps(frame)
             message = struct.pack("Q", len(a)) + a
-            client_socket.sendall(message)
-            cv2.imshow('Sending...', frame)
-            key = cv2.waitKey(10)
-            if key == 13:
-                client_socket.close()
+            sock.sendall(message)
+
+
+def receive_processed_frames(sock: socket.socket, frame_buffer: Queue, PAYLOAD_SIZE: int):
+    data = b""
+    while True:
+        while len(data) < PAYLOAD_SIZE:
+            packet = sock.recv(4 * 1024)
+            if not packet:
+                break
+            data += packet
+        packed_msg_size = data[:PAYLOAD_SIZE]
+        data = data[PAYLOAD_SIZE:]
+        msg_size = struct.unpack("Q", packed_msg_size)[0]
+        while len(data) < msg_size:
+            data += sock.recv(4 * 1024)
+        frame_data = data[:msg_size]
+        data = data[msg_size:]
+        frame = pickle.loads(frame_data)
+        frame_buffer.put(frame)
+
+
+if __name__ == "__main__":
+    # server socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_ip = 'localhost'
+    server_port = int(sys.argv[1])
+    socket_address = (host_ip, server_port)
+    print(f'server: {socket_address}')
+    server_socket.bind(socket_address)
+    server_socket.listen(5)
+
+    capture = cv2.VideoCapture(0)
+    capture.set(5, 10)
+
+    send_buffer, receive_buffer = Queue(), Queue()
+
+    client_socket, addr = server_socket.accept()
+
+    cap_p = Process(target=buffer_frames, args=(capture, send_buffer))
+    cap_p.start()
+
+    send_p = Process(target=send_frames, args=(client_socket, send_buffer))
+    send_p.start()
+
+    # connect to coral as a client
+    recv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_ip = 'localhost'
+    recv_port = int(sys.argv[2])
+    print(f'client: {(host_ip, recv_port)}')
+    recv_socket.connect((host_ip, recv_port))
+    PAYLOAD_SIZE = struct.calcsize("Q")
+
+    receive_p = Process(target=receive_processed_frames, args=(recv_socket, receive_buffer, PAYLOAD_SIZE))
+    receive_p.start()
+
+    while True:
+        if not receive_buffer.empty():
+            print(receive_buffer.get().shape, receive_buffer.qsize())
+
