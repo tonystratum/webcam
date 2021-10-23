@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # server socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_ip = '192.168.100.92'
+    server_ip = 'localhost'
     server_port = int(sys.argv[1])
     server_socket_address = (server_ip, server_port)
     print(f'server: {server_socket_address}')

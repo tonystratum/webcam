@@ -1,12 +1,22 @@
 from multiprocessing import Process, Queue
+import numpy
 import socket
 import struct
 import sys
 
 import net
 
+
+def transpose(receive_buffer: Queue, send_buffer: Queue):
+    while True:
+        if not receive_buffer.empty():
+            frame = receive_buffer.get()
+            tframe = numpy.transpose(frame, (1, 0, 2))
+            send_buffer.put(tframe)
+
+
 if __name__ == "__main__":
-    frame_buffer = Queue()
+    receive_buffer, send_buffer = Queue(), Queue()
 
     # client socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -28,10 +38,13 @@ if __name__ == "__main__":
 
     print("handshake ok")
     try:
-        receive_p = Process(target=net.receive_frames, args=(client_socket, frame_buffer, PAYLOAD_SIZE))
+        receive_p = Process(target=net.receive_frames, args=(client_socket, receive_buffer, PAYLOAD_SIZE))
         receive_p.start()
 
-        send_p = Process(target=net.send_frames, args=(destination_socket, frame_buffer))
+        transpose_p = Process(target=transpose, args=(receive_buffer, send_buffer))
+        transpose_p.start()
+
+        send_p = Process(target=net.send_frames, args=(destination_socket, send_buffer))
         send_p.start()
 
     finally:
