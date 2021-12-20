@@ -7,6 +7,9 @@ import time
 
 import net
 
+import redis
+from redis_queue import SimpleQueue
+
 
 def buffer_frames(capture: cv2.VideoCapture, frame_buffer: Queue):
     while capture.isOpened():
@@ -16,7 +19,8 @@ def buffer_frames(capture: cv2.VideoCapture, frame_buffer: Queue):
 if __name__ == "__main__":
     webcam = cv2.VideoCapture(0)
 
-    send_buffer, receive_buffer = Queue(), Queue()
+    r = redis.Redis()
+    send_buffer, receive_buffer = SimpleQueue(r, "send"), SimpleQueue(r, "recv")
 
     # server socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

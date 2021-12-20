@@ -1,10 +1,10 @@
 import pickle
 import socket
 import struct
-from multiprocessing import Queue
+from redis_queue import SimpleQueue
 
 
-def send_frames(sock: socket.socket, frame_buffer: Queue):
+def send_frames(sock: socket.socket, frame_buffer: SimpleQueue):
     while True:
         if sock:
             frame = frame_buffer.get()
@@ -13,7 +13,7 @@ def send_frames(sock: socket.socket, frame_buffer: Queue):
             sock.sendall(message)
 
 
-def receive_frames(sock: socket.socket, frame_buffer: Queue, payload_size: int):
+def receive_frames(sock: socket.socket, frame_buffer: SimpleQueue, payload_size: int):
     data = b""
     while True:
         if sock:

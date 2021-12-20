@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 import numpy
 import socket
 import struct
@@ -6,8 +6,11 @@ import sys
 
 import net
 
+import redis
+from redis_queue import SimpleQueue
 
-def transpose(receive_buffer: Queue, send_buffer: Queue):
+
+def transpose(receive_buffer: SimpleQueue, send_buffer: SimpleQueue):
     while True:
         if not receive_buffer.empty():
             frame = receive_buffer.get()
@@ -16,7 +19,8 @@ def transpose(receive_buffer: Queue, send_buffer: Queue):
 
 
 if __name__ == "__main__":
-    receive_buffer, send_buffer = Queue(), Queue()
+    r = redis.Redis()
+    send_buffer, receive_buffer = SimpleQueue(r, "send"), SimpleQueue(r, "recv")
 
     # client socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
