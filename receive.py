@@ -26,7 +26,7 @@ def transpose(receive_buffer: Queue, send_buffer: Queue):
             send_buffer.put(tframe)
 
 
-def detect(receive_buffer: Queue, send_buffer: Queue, model_file, label_file):
+def detect_objects(receive_buffer: Queue, send_buffer: Queue, model_file, label_file):
     # Initialize the TF interpreter
     # (locks the tpu => bound to the process)
     interpreter = edgetpu.make_interpreter(model_file)
@@ -68,10 +68,11 @@ def detect(receive_buffer: Queue, send_buffer: Queue, model_file, label_file):
 
 if __name__ == "__main__":
     # Specify the TensorFlow model, labels, and image
+    res_dir = "res"
     script_dir = pathlib.Path(__file__).parent.absolute()
-    model_file = os.path.join(script_dir, 'tf2_ssd_mobilenet_v2_coco17_ptq_edgetpu.tflite')
-    label_file = os.path.join(script_dir, 'coco_labels.txt')
-    image_file = os.path.join(script_dir, 'people.png')
+    model_file = os.path.join(script_dir, res_dir, 'tf2_ssd_mobilenet_v2_coco17_ptq_edgetpu.tflite')
+    label_file = os.path.join(script_dir, res_dir, 'coco_labels.txt')
+    image_file = os.path.join(script_dir, res_dir, 'people.png')
 
     receive_buffer, send_buffer = Queue(), Queue()
 
@@ -98,11 +99,11 @@ if __name__ == "__main__":
         receive_p = Process(target=net.receive_frames, args=(client_socket, receive_buffer, PAYLOAD_SIZE))
         receive_p.start()
 
-        # detect_p = Process(target=detect, args=(receive_buffer, send_buffer, model_file, label_file))
-        # detect_p.start()
+        detect_p = Process(target=detect_objects, args=(receive_buffer, send_buffer, model_file, label_file))
+        detect_p.start()
 
-        transpose_p = Process(target=transpose, args=(receive_buffer, send_buffer))
-        transpose_p.start()
+        # transpose_p = Process(target=transpose, args=(receive_buffer, send_buffer))
+        # transpose_p.start()
 
         send_p = Process(target=net.send_frames, args=(destination_socket, send_buffer))
         send_p.start()
