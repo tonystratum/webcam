@@ -1,20 +1,18 @@
-import io
 import pickle
 import socket
 import struct
 from multiprocessing import Queue
 
-import numpy
-from PIL import Image
+import cv2
 
 
 def send_frames(sock: socket.socket, frame_buffer: Queue):
     while True:
         if sock:
             frame = frame_buffer.get()
-            os = io.BytesIO()
-            Image.fromarray(frame).save(os, format="JPEG", quality=50)
-            a = pickle.dumps(os.getvalue())
+            a = pickle.dumps(
+                cv2.imencode(".jpg", frame, (1, 50))[1]
+            )
             message = struct.pack("Q", len(a)) + a
             sock.sendall(message)
 
@@ -36,5 +34,5 @@ def receive_frames(sock: socket.socket, frame_buffer: Queue, payload_size: int):
             frame_data = data[:msg_size]
             data = data[msg_size:]
             frame_jpeg = pickle.loads(frame_data)
-            frame = numpy.array(Image.open(io.BytesIO(frame_jpeg)))
+            frame = cv2.imdecode(frame_jpeg, 1)
             frame_buffer.put(frame)
